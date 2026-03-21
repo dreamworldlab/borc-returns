@@ -1,10 +1,9 @@
 "use client";
-export const dynamic = "force-dynamic";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 
-export default function SetupPage() {
+function SetupContent() {
   const searchParams = useSearchParams();
   const [token, setToken] = useState(null);
   const [error, setError] = useState(null);
@@ -63,7 +62,7 @@ export default function SetupPage() {
       {token && (
         <div>
           <p style={{ color: "green", fontWeight: "bold" }}>Access token obtained!</p>
-          <p style={{ marginTop: 10 }}>Copy this token and add it as SHOPIFY_ACCESS_TOKEN in Netlify environment variables:</p>
+          <p style={{ marginTop: 10 }}>Copy this token and add it as SHOPIFY_ACCESS_TOKEN in Netlify:</p>
           <textarea
             readOnly
             value={token}
@@ -89,5 +88,13 @@ export default function SetupPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function SetupPage() {
+  return (
+    <Suspense fallback={<p style={{ padding: 40 }}>Loading...</p>}>
+      <SetupContent />
+    </Suspense>
   );
 }
