@@ -21,9 +21,11 @@ export default function ReturnPage() {
   const [order, setOrder] = useState(null);
   const [selectedItems, setSelectedItems] = useState({});
   const [reasons, setReasons] = useState({});
-  const [creditOption, setCreditOption] = useState(null); // 'store_credit' | 'refund'
-  const [step, setStep] = useState(1); // 1 = select items, 2 = credit option, 3 = review
+  const [creditOption, setCreditOption] = useState(null);
+  const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
+  const [label, setLabel] = useState(null); // { labelUrl, trackingCode, carrier, service }
   const router = useRouter();
 
   useEffect(() => {
@@ -70,11 +72,42 @@ export default function ReturnPage() {
 
   async function handleSubmit() {
     setSubmitting(true);
-    // TODO: POST to /api/returns/create with selected items, reasons, creditOption
-    // For now, simulate success
-    await new Promise((r) => setTimeout(r, 1500));
-    setStep(4); // confirmation
-    setSubmitting(false);
+    setSubmitError(null);
+
+    try {
+      const res = await fetch("/api/returns/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: order.id,
+          items: selectedItemsList.map((item) => ({
+            id: item.id,
+            quantity: selectedItems[item.id],
+          })),
+          reasons,
+          creditOption,
+          shippingAddress: order.shipping_address,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to submit return");
+      }
+
+      // Store label info if we got one
+      if (data.label) {
+        setLabel(data.label);
+      }
+
+      setStep(4); // confirmation
+    } catch (err) {
+      console.error("Submit error:", err);
+      setSubmitError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -130,7 +163,6 @@ export default function ReturnPage() {
                   </div>
                 </div>
 
-                {/* Reason dropdown (visible when selected) */}
                 {selectedItems[item.id] && (
                   <div style={{ padding: "0 1.25rem 1rem", marginTop: "-0.5rem" }}>
                     <select
@@ -285,7 +317,7 @@ export default function ReturnPage() {
                       +${storeCreditBonus.toFixed(2)}
                     </span>
                   </div>
-                  <div className="summary-row">
+                  <div className="summary-row" style={{ fontWeight: 700 }}>
                     <span>Total estimated gift card</span>
                     <span>${storeCreditTotal.toFixed(2)}</span>
                   </div>
@@ -298,13 +330,31 @@ export default function ReturnPage() {
                       -${REFUND_FEE.toFixed(2)}
                     </span>
                   </div>
-                  <div className="summary-row">
+                  <div className="summary-row" style={{ fontWeight: 700 }}>
                     <span>Total estimated refund</span>
                     <span>${refundTotal.toFixed(2)}</span>
                   </div>
                 </>
               )}
             </div>
+
+            {/* Error message */}
+            {submitError && (
+              <div
+                style={{
+                  background: "#fff0f0",
+                  border: "1px solid #ffcdd2",
+                  borderRadius: 10,
+                  padding: "1rem 1.25rem",
+                  marginBottom: "1rem",
+                  color: "#c62828",
+                  fontSize: "0.875rem",
+                  lineHeight: 1.5,
+                }}
+              >
+                {submitError}
+              </div>
+            )}
 
             <button
               className="btn-primary"
@@ -320,6 +370,7 @@ export default function ReturnPage() {
 
             <button
               onClick={() => setStep(2)}
+              disabled={submitting}
               style={{
                 width: "100%",
                 padding: "0.875rem",
@@ -328,8 +379,9 @@ export default function ReturnPage() {
                 borderRadius: "10px",
                 fontSize: "0.9375rem",
                 fontWeight: 600,
-                cursor: "pointer",
+                cursor: submitting ? "not-allowed" : "pointer",
                 marginTop: "0.5rem",
+                opacity: submitting ? 0.5 : 1,
               }}
             >
               Go back
@@ -349,14 +401,7 @@ export default function ReturnPage() {
                 margin: "0 auto",
               }}
             >
-              <div
-                style={{
-                  fontSize: "3rem",
-                  marginBottom: "1rem",
-                }}
-              >
-                ✓
-              </div>
+              <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>✓</div>
               <h2
                 style={{
                   fontSize: "1.5rem",
@@ -374,25 +419,176 @@ export default function ReturnPage() {
                   lineHeight: 1.6,
                 }}
               >
-                Order {order.name} — We'll send shipping instructions to{" "}
-                <strong>{order.email}</strong>. Check your email for next steps.
+                Order {order.name} — We&apos;ll send shipping instructions to{" "}
+                <strong>{order.email}</strong>.
+                <br />
+                Check your email for next steps.
               </p>
 
+              {/* ── Label section ── */}
+              {label && label.labelUrl ? (
+                <div
+                  style={{
+                    background: "#f8f8f8",
+                    borderRadius: 10,
+                    padding: "1.5rem",
+                    marginBottom: "1.5rem",
+                    textAlign: "left",
+                  }}
+                >
+                  <h3
+                    style={{
+                      fontSize: "1.125rem",
+                      fontWeight: 700,
+                      marginBottom: "0.25rem",
+                    }}
+                  >
+                    Your label is ready to print
+                  </h3>
+                  <p
+                    style={{
+                      fontSize: "0.8125rem",
+                      color: "#6b6b6b",
+                      lineHeight: 1.5,
+                      marginBottom: "1rem",
+                    }}
+                  >
+                    Print your label, attach it to the package, and drop it off
+                    at any {label.carrier || "USPS"} location.
+                  </p>
+
+                  <a
+                    href={label.labelUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-primary"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "0.5rem",
+                      textDecoration: "none",
+                      textAlign: "center",
+                    }}
+                  >
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polyline points="6 9 6 2 18 2 18 9" />
+                      <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                      <rect x="6" y="14" width="12" height="8" />
+                    </svg>
+                    Print return label
+                  </a>
+
+                  {label.trackingCode && (
+                    <p
+                      style={{
+                        fontSize: "0.75rem",
+                        color: "#999",
+                        marginTop: "0.75rem",
+                        textAlign: "center",
+                      }}
+                    >
+                      Tracking: {label.trackingCode}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                /* No label — show estimated refund/credit instead */
+                <div
+                  style={{
+                    background: "#f8f8f8",
+                    borderRadius: 10,
+                    padding: "1.25rem",
+                    marginBottom: "1.5rem",
+                  }}
+                >
+                  <div className="summary-row" style={{ borderBottom: "none" }}>
+                    <span>
+                      {creditOption === "store_credit"
+                        ? "Estimated gift card"
+                        : "Estimated refund"}
+                    </span>
+                    <span style={{ fontSize: "1.25rem", fontWeight: 700 }}>
+                      $
+                      {creditOption === "store_credit"
+                        ? storeCreditTotal.toFixed(2)
+                        : refundTotal.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* How to ship instructions */}
+              <div
+                style={{
+                  textAlign: "left",
+                  marginBottom: "1.5rem",
+                  padding: "0 0.5rem",
+                }}
+              >
+                <h4
+                  style={{
+                    fontSize: "0.9375rem",
+                    fontWeight: 700,
+                    marginBottom: "0.75rem",
+                  }}
+                >
+                  How to ship your item(s)
+                </h4>
+                <ol
+                  style={{
+                    fontSize: "0.8125rem",
+                    color: "#6b6b6b",
+                    lineHeight: 1.7,
+                    paddingLeft: "1.25rem",
+                    margin: 0,
+                  }}
+                >
+                  <li style={{ marginBottom: "0.5rem" }}>
+                    {label
+                      ? "Download and print the return label above."
+                      : "Download and print the return label from your email."}
+                  </li>
+                  <li style={{ marginBottom: "0.5rem" }}>
+                    Pack all returned items in their original packaging if
+                    possible.
+                  </li>
+                  <li style={{ marginBottom: "0.5rem" }}>
+                    Attach the label to the outside of the package.
+                  </li>
+                  <li>
+                    Drop it off at any{" "}
+                    {label?.carrier || "USPS"} location.
+                  </li>
+                </ol>
+              </div>
+
+              {/* Return summary */}
               <div
                 style={{
                   background: "#f8f8f8",
                   borderRadius: 10,
                   padding: "1.25rem",
                   marginBottom: "1.5rem",
+                  textAlign: "left",
                 }}
               >
-                <div className="summary-row" style={{ borderBottom: "none" }}>
+                <div className="summary-row">
                   <span>
                     {creditOption === "store_credit"
                       ? "Estimated gift card"
                       : "Estimated refund"}
                   </span>
-                  <span style={{ fontSize: "1.25rem", fontWeight: 700 }}>
+                  <span style={{ fontSize: "1.125rem", fontWeight: 700 }}>
                     $
                     {creditOption === "store_credit"
                       ? storeCreditTotal.toFixed(2)
@@ -413,6 +609,36 @@ export default function ReturnPage() {
               >
                 Continue shopping
               </a>
+
+              {/* Support footer */}
+              <div
+                style={{
+                  marginTop: "2rem",
+                  padding: "1rem",
+                  background: "#f8f8f8",
+                  borderRadius: 10,
+                }}
+              >
+                <p
+                  style={{
+                    fontSize: "0.8125rem",
+                    fontWeight: 600,
+                    marginBottom: "0.25rem",
+                  }}
+                >
+                  Questions?
+                </p>
+                <a
+                  href="mailto:support@birthofroyalchild.com"
+                  style={{
+                    fontSize: "0.8125rem",
+                    color: "#000",
+                    textDecoration: "underline",
+                  }}
+                >
+                  Contact support@birthofroyalchild.com
+                </a>
+              </div>
             </div>
           </div>
         )}

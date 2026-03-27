@@ -102,6 +102,21 @@ export async function POST(request) {
         days_since_order: daysSinceOrder,
         return_window_days: RETURN_WINDOW_DAYS,
         items: items,
+        // Customer's shipping address (needed for return label generation)
+        shipping_address: order.shipping_address
+          ? {
+              name: `${order.shipping_address.first_name} ${order.shipping_address.last_name}`,
+              address1: order.shipping_address.address1,
+              address2: order.shipping_address.address2,
+              city: order.shipping_address.city,
+              province: order.shipping_address.province,
+              province_code: order.shipping_address.province_code,
+              zip: order.shipping_address.zip,
+              country: order.shipping_address.country,
+              country_code: order.shipping_address.country_code,
+              phone: order.shipping_address.phone,
+            }
+          : null,
       },
     });
   } catch (error) {
