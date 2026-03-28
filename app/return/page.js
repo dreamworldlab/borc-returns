@@ -3,6 +3,11 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
+/* ═══════════════════════════════════════════
+   CONFIG — Edit these values for the client
+   ═══════════════════════════════════════════ */
+
+// Return reason dropdown options
 const RETURN_REASONS = [
   "Too small",
   "Too large",
@@ -13,19 +18,23 @@ const RETURN_REASONS = [
   "Other",
 ];
 
-// Config — adjust these per client
+// Bonus percentage added to store credit (10 = 10%)
 const STORE_CREDIT_BONUS_PERCENT = 10;
+
+// Fee deducted from refund to original payment ($10)
 const REFUND_FEE = 10;
+
+/* ═══════════════════════════════════════════ */
 
 export default function ReturnPage() {
   const [order, setOrder] = useState(null);
   const [selectedItems, setSelectedItems] = useState({});
   const [reasons, setReasons] = useState({});
   const [creditOption, setCreditOption] = useState(null);
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(1); // 1 = select items, 2 = review + credit + submit, 3 = confirmation
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
-  const [label, setLabel] = useState(null); // { labelUrl, trackingCode, carrier, service }
+  const [label, setLabel] = useState(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -39,7 +48,7 @@ export default function ReturnPage() {
 
   if (!order) return null;
 
-  // Calculate totals
+  // Derived data
   const selectedItemsList = order.items.filter((item) => selectedItems[item.id]);
   const itemsTotal = selectedItemsList.reduce(
     (sum, item) => sum + parseFloat(item.price) * (selectedItems[item.id] || 0),
@@ -71,6 +80,7 @@ export default function ReturnPage() {
   }
 
   async function handleSubmit() {
+    if (!creditOption) return;
     setSubmitting(true);
     setSubmitError(null);
 
@@ -96,12 +106,11 @@ export default function ReturnPage() {
         throw new Error(data.error || "Failed to submit return");
       }
 
-      // Store label info if we got one
       if (data.label) {
         setLabel(data.label);
       }
 
-      setStep(4); // confirmation
+      setStep(3);
     } catch (err) {
       console.error("Submit error:", err);
       setSubmitError(err.message);
@@ -110,459 +119,436 @@ export default function ReturnPage() {
     }
   }
 
-  return (
-    <div className="return-wrapper">
-      <div className="return-container">
-        {/* Header */}
-        <div className="return-header">
-          <h1>Birth Of Royal Child</h1>
-          {step < 4 && <h2>Return — Order {order.name}</h2>}
-        </div>
+  // ─── Render helpers ──────────────────────
 
-        {/* Step 1: Select items */}
+  function renderItemImage(item) {
+    if (item.image) {
+      return <img src={item.image} alt={item.title} className="item-img" />;
+    }
+    return <div className="item-img-placeholder">No image</div>;
+  }
+
+  function renderHeader() {
+    return (
+      <div className="return-page-header">
         {step === 1 && (
-          <div>
-            <p className="section-label">Select items to return</p>
+          <a href="/" className="back-arrow" title="Back">
+            ←
+          </a>
+        )}
+        {step === 2 && (
+          <button
+            onClick={() => setStep(1)}
+            className="back-arrow"
+            style={{ background: "none", border: "none", cursor: "pointer" }}
+            title="Back"
+          >
+            ←
+          </button>
+        )}
+        <div className="return-page-logo">Birth Of Royal Child</div>
+      </div>
+    );
+  }
 
-            {order.items.map((item) => (
-              <div key={item.id}>
-                <div
-                  className={`item-card ${selectedItems[item.id] ? "selected" : ""}`}
-                  onClick={() => toggleItem(item.id, item.quantity)}
-                >
-                  {item.image ? (
-                    <img
-                      src={item.image}
-                      alt={item.title}
-                      className="item-image"
-                    />
-                  ) : (
-                    <div
-                      className="item-image"
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "0.75rem",
-                        color: "#aaa",
-                      }}
-                    >
-                      No image
-                    </div>
-                  )}
+  // ─── STEP 1: Select Items ────────────────
 
-                  <div className="item-details">
-                    <div className="item-title">{item.title}</div>
-                    <div className="item-variant">
-                      {item.variant_title} · Qty: {item.quantity}
-                    </div>
-                  </div>
+  if (step === 1) {
+    return (
+      <div className="return-page">
+        {renderHeader()}
+        <div className="return-page-body" style={{ maxWidth: 680 }}>
+          <h1 className="return-page-title">Select items to return</h1>
 
-                  <div className="item-price">
-                    ${parseFloat(item.price).toFixed(2)}
+          {order.items.map((item) => (
+            <div
+              key={item.id}
+              className={`item-selectable ${selectedItems[item.id] ? "selected" : ""}`}
+              onClick={() => toggleItem(item.id, item.quantity)}
+            >
+              <div className="item-inner">
+                {renderItemImage(item)}
+                <div className="item-info">
+                  <div className="item-name">{item.title}</div>
+                  <div className="item-meta">
+                    {item.variant_title} · Qty: {item.quantity}
                   </div>
                 </div>
-
-                {selectedItems[item.id] && (
-                  <div style={{ padding: "0 1.25rem 1rem", marginTop: "-0.5rem" }}>
-                    <select
-                      className="input-field"
-                      value={reasons[item.id] || ""}
-                      onChange={(e) => setReason(item.id, e.target.value)}
-                      style={{ fontSize: "0.8125rem" }}
-                    >
-                      <option value="">Select a reason...</option>
-                      {RETURN_REASONS.map((r) => (
-                        <option key={r} value={r}>
-                          {r}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+                <div className="item-price-col">
+                  ${parseFloat(item.price).toFixed(2)}
+                </div>
               </div>
-            ))}
 
+              {selectedItems[item.id] && (
+                <div className="item-reason-select" onClick={(e) => e.stopPropagation()}>
+                  <select
+                    className="input-field"
+                    value={reasons[item.id] || ""}
+                    onChange={(e) => setReason(item.id, e.target.value)}
+                    style={{ fontSize: "0.8125rem" }}
+                  >
+                    <option value="">Select a reason...</option>
+                    {RETURN_REASONS.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          ))}
+
+          <div style={{ marginTop: "1.5rem" }}>
             <button
               className="btn-primary"
               disabled={!canProceedStep1()}
               onClick={() => setStep(2)}
-              style={{ marginTop: "1.5rem" }}
             >
               Continue
             </button>
-
             <button
+              className="btn-secondary"
               onClick={() => router.push("/")}
-              style={{
-                width: "100%",
-                padding: "0.875rem",
-                background: "transparent",
-                border: "2px solid #e2e2e2",
-                borderRadius: "10px",
-                fontSize: "0.9375rem",
-                fontWeight: 600,
-                cursor: "pointer",
-                marginTop: "0.5rem",
-              }}
+              style={{ marginTop: "0.5rem" }}
             >
               Go back
             </button>
           </div>
-        )}
+        </div>
+      </div>
+    );
+  }
 
-        {/* Step 2: Credit option */}
-        {step === 2 && (
-          <div>
-            <p className="section-label">Choose your return method</p>
+  // ─── STEP 2: Review + Credit Option + Submit ────
 
-            <div
-              className={`credit-option ${creditOption === "store_credit" ? "selected" : ""}`}
-              onClick={() => setCreditOption("store_credit")}
-            >
-              <div className="credit-option-icon">🎁</div>
-              <div className="credit-option-details">
-                <h3>Store credit</h3>
-                <span className="bonus">
-                  +${storeCreditBonus.toFixed(2)} Bonus credit
-                </span>
-                <p>
-                  Receive a gift card code via email once your return has been
-                  approved.
-                </p>
-              </div>
-            </div>
+  if (step === 2) {
+    return (
+      <div className="return-page">
+        {renderHeader()}
+        <div className="return-page-body">
+          <h1 className="return-page-title">Review your return</h1>
 
-            <div
-              className={`credit-option ${creditOption === "refund" ? "selected" : ""}`}
-              onClick={() => setCreditOption("refund")}
-            >
-              <div className="credit-option-icon">💳</div>
-              <div className="credit-option-details">
-                <h3>Refund to original payment method</h3>
-                <span className="fee">-${REFUND_FEE.toFixed(2)} Fee</span>
-                <p>
-                  Receive a refund (minus applicable fees) to your original
-                  payment method once your return is approved.
-                </p>
-              </div>
-            </div>
-
-            <button
-              className="btn-primary"
-              disabled={!creditOption}
-              onClick={() => setStep(3)}
-              style={{ marginTop: "1rem" }}
-            >
-              Continue
-            </button>
-
-            <button
-              onClick={() => setStep(1)}
-              style={{
-                width: "100%",
-                padding: "0.875rem",
-                background: "transparent",
-                border: "2px solid #e2e2e2",
-                borderRadius: "10px",
-                fontSize: "0.9375rem",
-                fontWeight: 600,
-                cursor: "pointer",
-                marginTop: "0.5rem",
-              }}
-            >
-              Go back
-            </button>
-          </div>
-        )}
-
-        {/* Step 3: Review */}
-        {step === 3 && (
-          <div>
-            <p className="section-label">Review your return</p>
-
-            <div style={{ background: "#fff", borderRadius: 12, padding: "1.25rem", marginBottom: "1rem" }}>
-              <p className="section-label" style={{ marginBottom: "0.5rem" }}>
-                Items
-              </p>
-              {selectedItemsList.map((item) => (
-                <div className="summary-row" key={item.id}>
+          <div className="return-two-col">
+            {/* ── LEFT COLUMN ── */}
+            <div>
+              {/* Send back your return */}
+              <div className="return-card">
+                <div className="return-card-title">Send back your return</div>
+                <div className="return-card-subtitle">
+                  Handling fees may apply.
+                </div>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: "0.875rem" }}>
+                  <div style={{ fontSize: "1.5rem", marginTop: "0.125rem" }}>📦</div>
                   <div>
-                    <div style={{ fontWeight: 600 }}>{item.title}</div>
-                    <div style={{ fontSize: "0.8125rem", color: "#6b6b6b" }}>
-                      {item.variant_title} · {reasons[item.id]}
+                    <div style={{ fontWeight: 600, fontSize: "0.9375rem", marginBottom: "0.25rem" }}>
+                      Box and ship it
+                    </div>
+                    <div style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", lineHeight: 1.6 }}>
+                      Print label or show QR code if provided, pack items and bring to carrier. Refund times vary.
                     </div>
                   </div>
-                  <div>${parseFloat(item.price).toFixed(2)}</div>
                 </div>
-              ))}
-            </div>
-
-            <div style={{ background: "#fff", borderRadius: 12, padding: "1.25rem", marginBottom: "1rem" }}>
-              <p className="section-label" style={{ marginBottom: "0.5rem" }}>
-                Return summary
-              </p>
-              <div className="summary-row">
-                <span>Item total</span>
-                <span>${itemsTotal.toFixed(2)}</span>
               </div>
 
-              {creditOption === "store_credit" ? (
-                <>
-                  <div className="summary-row">
-                    <span style={{ color: "var(--success)" }}>
-                      Store credit bonus ({STORE_CREDIT_BONUS_PERCENT}%)
-                    </span>
-                    <span style={{ color: "var(--success)" }}>
-                      +${storeCreditBonus.toFixed(2)}
-                    </span>
+              {/* What you're sending back */}
+              <div className="return-card">
+                <div className="return-card-title">What you&apos;re sending back</div>
+                {selectedItemsList.map((item) => (
+                  <div className="item-row" key={item.id}>
+                    {renderItemImage(item)}
+                    <div className="item-info">
+                      <div className="item-name">{item.title}</div>
+                      <div className="item-meta">
+                        {item.variant_title}
+                      </div>
+                    </div>
                   </div>
-                  <div className="summary-row" style={{ fontWeight: 700 }}>
-                    <span>Total estimated gift card</span>
-                    <span>${storeCreditTotal.toFixed(2)}</span>
+                ))}
+              </div>
+
+              {/* Customer information */}
+              {order.shipping_address && (
+                <div className="return-card">
+                  <div className="return-card-title" style={{ marginBottom: "1.25rem" }}>
+                    Customer information
                   </div>
-                </>
-              ) : (
-                <>
-                  <div className="summary-row">
-                    <span style={{ color: "var(--error)" }}>Return fee</span>
-                    <span style={{ color: "var(--error)" }}>
-                      -${REFUND_FEE.toFixed(2)}
-                    </span>
+
+                  <div className="customer-label">Contact info</div>
+                  <div className="customer-value">
+                    {order.email}
+                    {order.shipping_address.phone && (
+                      <>
+                        <br />
+                        {order.shipping_address.phone}
+                      </>
+                    )}
                   </div>
-                  <div className="summary-row" style={{ fontWeight: 700 }}>
-                    <span>Total estimated refund</span>
-                    <span>${refundTotal.toFixed(2)}</span>
+
+                  <div className="customer-label">Shipping address</div>
+                  <div className="customer-value">
+                    {order.shipping_address.name}
+                    <br />
+                    {order.shipping_address.address1}
+                    {order.shipping_address.address2 && (
+                      <>
+                        <br />
+                        {order.shipping_address.address2}
+                      </>
+                    )}
+                    <br />
+                    {order.shipping_address.city}{" "}
+                    {order.shipping_address.province_code || order.shipping_address.province}{" "}
+                    {order.shipping_address.zip}{" "}
+                    {order.shipping_address.country}
                   </div>
-                </>
+                </div>
               )}
             </div>
 
-            {/* Error message */}
-            {submitError && (
-              <div
-                style={{
-                  background: "#fff0f0",
-                  border: "1px solid #ffcdd2",
-                  borderRadius: 10,
-                  padding: "1rem 1.25rem",
-                  marginBottom: "1rem",
-                  color: "#c62828",
-                  fontSize: "0.875rem",
-                  lineHeight: 1.5,
-                }}
-              >
-                {submitError}
-              </div>
-            )}
+            {/* ── RIGHT COLUMN (Sidebar) ── */}
+            <div className="sidebar-summary">
+              <div className="return-card">
+                <div className="summary-section-title">Return summary</div>
 
-            <button
-              className="btn-primary"
-              disabled={submitting}
-              onClick={handleSubmit}
-            >
-              {submitting ? (
-                <span className="spinner"></span>
-              ) : (
-                "Submit return"
-              )}
-            </button>
+                {/* Items in summary */}
+                <div className="section-label" style={{ marginTop: "0.5rem" }}>
+                  Return credits ({selectedItemsList.length})
+                </div>
 
-            <button
-              onClick={() => setStep(2)}
-              disabled={submitting}
-              style={{
-                width: "100%",
-                padding: "0.875rem",
-                background: "transparent",
-                border: "2px solid #e2e2e2",
-                borderRadius: "10px",
-                fontSize: "0.9375rem",
-                fontWeight: 600,
-                cursor: submitting ? "not-allowed" : "pointer",
-                marginTop: "0.5rem",
-                opacity: submitting ? 0.5 : 1,
-              }}
-            >
-              Go back
-            </button>
-          </div>
-        )}
+                {selectedItemsList.map((item) => (
+                  <div className="item-row" key={item.id} style={{ gap: "0.75rem" }}>
+                    {renderItemImage(item)}
+                    <div className="item-info">
+                      <div className="item-name" style={{ fontSize: "0.8125rem" }}>
+                        {item.title}
+                      </div>
+                      <div className="item-meta">{item.variant_title}</div>
+                    </div>
+                    <div className="item-price-col" style={{ fontSize: "0.8125rem" }}>
+                      ${parseFloat(item.price).toFixed(2)}
+                    </div>
+                  </div>
+                ))}
 
-        {/* Step 4: Confirmation */}
-        {step === 4 && (
-          <div style={{ textAlign: "center" }}>
-            <div
-              style={{
-                background: "#fff",
-                borderRadius: 12,
-                padding: "3rem 2rem",
-                maxWidth: 560,
-                margin: "0 auto",
-              }}
-            >
-              <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>✓</div>
-              <h2
-                style={{
-                  fontSize: "1.5rem",
-                  fontWeight: 700,
-                  marginBottom: "0.5rem",
-                }}
-              >
-                Your return has been submitted
-              </h2>
-              <p
-                style={{
-                  color: "#6b6b6b",
-                  fontSize: "0.9375rem",
-                  marginBottom: "2rem",
-                  lineHeight: 1.6,
-                }}
-              >
-                Order {order.name} — We&apos;ll send shipping instructions to{" "}
-                <strong>{order.email}</strong>.
-                <br />
-                Check your email for next steps.
-              </p>
+                <hr className="summary-divider" />
 
-              {/* ── Label section ── */}
-              {label && label.labelUrl ? (
+                <div className="summary-line">
+                  <span>Credit subtotal</span>
+                  <span style={{ fontWeight: 600 }}>${itemsTotal.toFixed(2)}</span>
+                </div>
+
+                <hr className="summary-divider" />
+
+                {/* Credit options */}
+                <div className="section-label" style={{ marginTop: "0.5rem" }}>
+                  Credit options
+                </div>
+
                 <div
-                  style={{
-                    background: "#f8f8f8",
-                    borderRadius: 10,
-                    padding: "1.5rem",
-                    marginBottom: "1.5rem",
-                    textAlign: "left",
-                  }}
+                  className={`credit-option ${creditOption === "store_credit" ? "selected" : ""}`}
+                  onClick={() => setCreditOption("store_credit")}
                 >
-                  <h3
-                    style={{
-                      fontSize: "1.125rem",
-                      fontWeight: 700,
-                      marginBottom: "0.25rem",
-                    }}
-                  >
-                    Your label is ready to print
-                  </h3>
-                  <p
-                    style={{
-                      fontSize: "0.8125rem",
-                      color: "#6b6b6b",
-                      lineHeight: 1.5,
-                      marginBottom: "1rem",
-                    }}
-                  >
-                    Print your label, attach it to the package, and drop it off
-                    at any {label.carrier || "USPS"} location.
-                  </p>
-
-                  <a
-                    href={label.labelUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn-primary"
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: "0.5rem",
-                      textDecoration: "none",
-                      textAlign: "center",
-                    }}
-                  >
-                    <svg
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <polyline points="6 9 6 2 18 2 18 9" />
-                      <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-                      <rect x="6" y="14" width="12" height="8" />
-                    </svg>
-                    Print return label
-                  </a>
-
-                  {label.trackingCode && (
-                    <p
-                      style={{
-                        fontSize: "0.75rem",
-                        color: "#999",
-                        marginTop: "0.75rem",
-                        textAlign: "center",
-                      }}
-                    >
-                      Tracking: {label.trackingCode}
+                  <div className="credit-option-icon">🎁</div>
+                  <div className="credit-option-details">
+                    <h3>Store credit</h3>
+                    <span className="bonus">
+                      +${storeCreditBonus.toFixed(2)} Bonus credit
+                    </span>
+                    <p>
+                      Receive a gift card code via email once your return has
+                      been approved.
                     </p>
-                  )}
+                  </div>
                 </div>
-              ) : (
-                /* No label — show estimated refund/credit instead */
+
                 <div
-                  style={{
-                    background: "#f8f8f8",
-                    borderRadius: 10,
-                    padding: "1.25rem",
-                    marginBottom: "1.5rem",
-                  }}
+                  className={`credit-option ${creditOption === "refund" ? "selected" : ""}`}
+                  onClick={() => setCreditOption("refund")}
                 >
-                  <div className="summary-row" style={{ borderBottom: "none" }}>
+                  <div className="credit-option-icon">💳</div>
+                  <div className="credit-option-details">
+                    <h3>Refund to original payment method</h3>
+                    <span className="fee">-${REFUND_FEE.toFixed(2)} Fee</span>
+                    <p>
+                      Receive a refund (minus applicable fees) to your original
+                      payment method once your return is approved.
+                    </p>
+                  </div>
+                </div>
+
+                <hr className="summary-divider" />
+
+                {/* Total */}
+                {creditOption && (
+                  <div className="summary-total">
                     <span>
                       {creditOption === "store_credit"
-                        ? "Estimated gift card"
-                        : "Estimated refund"}
+                        ? "Total estimated gift card"
+                        : "Total estimated refund"}
                     </span>
-                    <span style={{ fontSize: "1.25rem", fontWeight: 700 }}>
+                    <span>
                       $
                       {creditOption === "store_credit"
                         ? storeCreditTotal.toFixed(2)
                         : refundTotal.toFixed(2)}
                     </span>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* How to ship instructions */}
-              <div
-                style={{
-                  textAlign: "left",
-                  marginBottom: "1.5rem",
-                  padding: "0 0.5rem",
-                }}
-              >
-                <h4
-                  style={{
-                    fontSize: "0.9375rem",
-                    fontWeight: 700,
-                    marginBottom: "0.75rem",
-                  }}
+                {/* Error */}
+                {submitError && (
+                  <div className="error-banner" style={{ marginTop: "1rem" }}>
+                    {submitError}
+                  </div>
+                )}
+
+                {/* Submit */}
+                <button
+                  className="btn-primary"
+                  disabled={!creditOption || submitting}
+                  onClick={handleSubmit}
+                  style={{ marginTop: "1.25rem" }}
                 >
-                  How to ship your item(s)
-                </h4>
-                <ol
-                  style={{
-                    fontSize: "0.8125rem",
-                    color: "#6b6b6b",
-                    lineHeight: 1.7,
-                    paddingLeft: "1.25rem",
-                    margin: 0,
-                  }}
+                  {submitting ? <span className="spinner"></span> : "Submit return"}
+                </button>
+
+                <button
+                  className="btn-secondary"
+                  disabled={submitting}
+                  onClick={() => setStep(1)}
+                  style={{ marginTop: "0.5rem" }}
                 >
-                  <li style={{ marginBottom: "0.5rem" }}>
-                    {label
+                  Go back
+                </button>
+
+                {/* Questions */}
+                <div className="questions-box" style={{ marginTop: "1rem" }}>
+                  <strong>Questions?</strong>
+                  Contact{" "}
+                  <a href="mailto:support@birthofroyalchild.com">
+                    support@birthofroyalchild.com
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── STEP 3: Confirmation ────────────────
+
+  if (step === 3) {
+    return (
+      <div className="return-page">
+        {renderHeader()}
+        <div className="return-page-body">
+          <h1 className="return-page-title">Your return has been submitted</h1>
+
+          <div className="return-two-col">
+            {/* ── LEFT COLUMN ── */}
+            <div>
+              {/* Label card */}
+              <div className="confirm-label-card">
+                <div style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", marginBottom: "1rem" }}>
+                  Order {order.name}
+                </div>
+
+                {label && label.labelUrl ? (
+                  <>
+                    <div className="confirm-label-title">
+                      Your label is ready to print
+                    </div>
+                    <div className="confirm-label-sub">
+                      Use the link below to print your label and attach it to the
+                      top of the package, then drop it off at any{" "}
+                      {label.carrier || "USPS"} location.
+                    </div>
+
+                    <a
+                      href={label.labelUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-primary"
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "0.5rem",
+                        textDecoration: "none",
+                        textAlign: "center",
+                      }}
+                    >
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <polyline points="6 9 6 2 18 2 18 9" />
+                        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                        <rect x="6" y="14" width="12" height="8" />
+                      </svg>
+                      Print return label
+                    </a>
+
+                    <div className="confirm-email-note">
+                      <span>✉</span>
+                      <span>
+                        A link to these instructions has been emailed to{" "}
+                        {order.email}.
+                      </span>
+                    </div>
+
+                    {label.trackingCode && (
+                      <div
+                        style={{
+                          fontSize: "0.75rem",
+                          color: "var(--text-secondary)",
+                          marginTop: "0.75rem",
+                        }}
+                      >
+                        Tracking: {label.trackingCode}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div className="confirm-label-title">
+                      We&apos;ll send your return label shortly
+                    </div>
+                    <div className="confirm-label-sub">
+                      Check your email at <strong>{order.email}</strong> for
+                      shipping instructions and your return label.
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* How to ship */}
+              <div className="return-card">
+                <div className="confirm-ship-title">How to ship your item(s)</div>
+                <ol className="confirm-ship-list">
+                  <li>
+                    {label && label.labelUrl
                       ? "Download and print the return label above."
                       : "Download and print the return label from your email."}
+                    {" "}If you do not have a printer, you may take your parcel to
+                    your local Post Office where they can attach the label and
+                    send off your parcel for you.
                   </li>
-                  <li style={{ marginBottom: "0.5rem" }}>
-                    Pack all returned items in their original packaging if
-                    possible.
+                  <li>
+                    Pack all returned items in your original shipping satchel or
+                    any suitable box. Make sure items are clean and in original
+                    condition.
                   </li>
-                  <li style={{ marginBottom: "0.5rem" }}>
+                  <li>
                     Attach the label to the outside of the package.
                   </li>
                   <li>
@@ -571,24 +557,59 @@ export default function ReturnPage() {
                   </li>
                 </ol>
               </div>
+            </div>
 
-              {/* Return summary */}
-              <div
-                style={{
-                  background: "#f8f8f8",
-                  borderRadius: 10,
-                  padding: "1.25rem",
-                  marginBottom: "1.5rem",
-                  textAlign: "left",
-                }}
-              >
-                <div className="summary-row">
+            {/* ── RIGHT COLUMN ── */}
+            <div className="sidebar-summary">
+              <div className="return-card">
+                <div className="summary-section-title">Return summary</div>
+
+                <div className="section-label">
+                  Return credits ({selectedItemsList.length})
+                </div>
+
+                {selectedItemsList.map((item) => (
+                  <div className="item-row" key={item.id} style={{ gap: "0.75rem" }}>
+                    {renderItemImage(item)}
+                    <div className="item-info">
+                      <div className="item-name" style={{ fontSize: "0.8125rem" }}>
+                        {item.title}
+                      </div>
+                      <div className="item-meta">{item.variant_title}</div>
+                    </div>
+                    <div className="item-price-col" style={{ fontSize: "0.8125rem" }}>
+                      ${parseFloat(item.price).toFixed(2)}
+                    </div>
+                  </div>
+                ))}
+
+                <hr className="summary-divider" />
+
+                <div className="summary-line">
+                  <span>Credit subtotal</span>
+                  <span style={{ fontWeight: 600 }}>${itemsTotal.toFixed(2)}</span>
+                </div>
+
+                {creditOption === "store_credit" && (
+                  <div className="summary-line">
+                    <span style={{ color: "var(--success)" }}>
+                      Store credit bonus
+                    </span>
+                    <span style={{ color: "var(--success)", fontWeight: 600 }}>
+                      ${storeCreditBonus.toFixed(2)}
+                    </span>
+                  </div>
+                )}
+
+                <hr className="summary-divider" />
+
+                <div className="summary-total">
                   <span>
                     {creditOption === "store_credit"
-                      ? "Estimated gift card"
-                      : "Estimated refund"}
+                      ? "Total estimated gift card"
+                      : "Total estimated refund"}
                   </span>
-                  <span style={{ fontSize: "1.125rem", fontWeight: 700 }}>
+                  <span>
                     $
                     {creditOption === "store_credit"
                       ? storeCreditTotal.toFixed(2)
@@ -597,52 +618,33 @@ export default function ReturnPage() {
                 </div>
               </div>
 
+              {/* Continue shopping */}
               <a
                 href="https://birthofroyalchild.com"
                 className="btn-primary"
                 style={{
-                  display: "inline-block",
+                  display: "block",
                   textDecoration: "none",
                   textAlign: "center",
-                  maxWidth: 300,
+                  marginTop: "0.75rem",
                 }}
               >
                 Continue shopping
               </a>
 
-              {/* Support footer */}
-              <div
-                style={{
-                  marginTop: "2rem",
-                  padding: "1rem",
-                  background: "#f8f8f8",
-                  borderRadius: 10,
-                }}
-              >
-                <p
-                  style={{
-                    fontSize: "0.8125rem",
-                    fontWeight: 600,
-                    marginBottom: "0.25rem",
-                  }}
-                >
-                  Questions?
-                </p>
-                <a
-                  href="mailto:support@birthofroyalchild.com"
-                  style={{
-                    fontSize: "0.8125rem",
-                    color: "#000",
-                    textDecoration: "underline",
-                  }}
-                >
-                  Contact support@birthofroyalchild.com
+              <div className="questions-box" style={{ marginTop: "1rem" }}>
+                <strong>Questions?</strong>
+                Contact{" "}
+                <a href="mailto:support@birthofroyalchild.com">
+                  support@birthofroyalchild.com
                 </a>
               </div>
             </div>
           </div>
-        )}
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
+
+  return null;
 }

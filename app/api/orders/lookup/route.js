@@ -17,6 +17,30 @@ async function shopifyFetch(endpoint) {
   return res.json();
 }
 
+// Fetch product images for items missing images
+async function fetchProductImages(productIds) {
+  if (productIds.length === 0) return {};
+
+  const uniqueIds = [...new Set(productIds)];
+  const imageMap = {};
+
+  // Shopify allows up to 250 IDs per request
+  const idsParam = uniqueIds.join(",");
+  const data = await shopifyFetch(
+    `products.json?ids=${idsParam}&fields=id,images`
+  );
+
+  if (data.products) {
+    for (const product of data.products) {
+      if (product.images && product.images.length > 0) {
+        imageMap[product.id] = product.images[0].src;
+      }
+    }
+  }
+
+  return imageMap;
+}
+
 export async function POST(request) {
   try {
     const { orderNumber, email } = await request.json();
@@ -77,7 +101,7 @@ export async function POST(request) {
       );
     }
 
-    // Build clean line items for the frontend
+    // Build initial line items
     const items = order.line_items.map((item) => ({
       id: item.id,
       title: item.title,
@@ -85,9 +109,27 @@ export async function POST(request) {
       quantity: item.quantity,
       price: item.price,
       image: item.image?.src || null,
+      product_id: item.product_id,
       sku: item.sku,
       fulfillment_status: item.fulfillment_status,
     }));
+
+    // Fetch product images for items missing images
+    const missingImageProductIds = items
+      .filter((item) => !item.image && item.product_id)
+      .map((item) => item.product_id);
+
+    if (missingImageProductIds.length > 0) {
+      const productImages = await fetchProductImages(missingImageProductIds);
+      for (const item of items) {
+        if (!item.image && productImages[item.product_id]) {
+          item.image = productImages[item.product_id];
+        }
+      }
+    }
+
+    // Clean up — don't send product_id to the frontend
+    const cleanItems = items.map(({ product_id, ...rest }) => rest);
 
     return NextResponse.json({
       order: {
@@ -101,8 +143,7 @@ export async function POST(request) {
         currency: order.currency,
         days_since_order: daysSinceOrder,
         return_window_days: RETURN_WINDOW_DAYS,
-        items: items,
-        // Customer's shipping address (needed for return label generation)
+        items: cleanItems,
         shipping_address: order.shipping_address
           ? {
               name: `${order.shipping_address.first_name} ${order.shipping_address.last_name}`,
