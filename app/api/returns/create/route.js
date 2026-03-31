@@ -50,22 +50,23 @@ async function shopifyGraphQL(query, variables = {}) {
 async function getFulfillmentLineItems(orderId) {
   const query = `
     query getReturnableItems($orderId: ID!) {
-      order(id: $orderId) {
-        returnableFulfillments(first: 10) {
-          nodes {
+      returnableFulfillments(orderId: $orderId, first: 10) {
+        edges {
+          node {
             fulfillment {
               id
             }
             returnableFulfillmentLineItems(first: 50) {
-              nodes {
-                fulfillmentLineItem {
-                  id
-                  lineItem {
+              edges {
+                node {
+                  fulfillmentLineItem {
                     id
+                    lineItem {
+                      id
+                    }
                   }
                   quantity
                 }
-                quantity
               }
             }
           }
@@ -83,18 +84,17 @@ async function getFulfillmentLineItems(orderId) {
     throw new Error("Failed to fetch fulfillment data");
   }
 
-  // Build a map: REST lineItem ID → fulfillmentLineItem GID
   const mapping = {};
-  const fulfillments = result.data?.order?.returnableFulfillments?.nodes || [];
+  const fulfillments = result.data?.returnableFulfillments?.edges || [];
 
-  for (const f of fulfillments) {
-    for (const item of f.returnableFulfillmentLineItems?.nodes || []) {
-      // lineItem.id comes back as "gid://shopify/LineItem/123456"
-      const lineItemNumericId = item.fulfillmentLineItem.lineItem.id
+  for (const edge of fulfillments) {
+    for (const itemEdge of edge.node.returnableFulfillmentLineItems?.edges || []) {
+      const node = itemEdge.node;
+      const lineItemNumericId = node.fulfillmentLineItem.lineItem.id
         .replace("gid://shopify/LineItem/", "");
       mapping[lineItemNumericId] = {
-        fulfillmentLineItemId: item.fulfillmentLineItem.id,
-        maxQuantity: item.quantity,
+        fulfillmentLineItemId: node.fulfillmentLineItem.id,
+        maxQuantity: node.quantity,
       };
     }
   }
