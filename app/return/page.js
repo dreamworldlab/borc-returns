@@ -470,7 +470,7 @@ export default function ReturnPage() {
                       {label.carrier || "USPS"} location.
                     </div>
 
-                    <a
+                    
                       href={label.labelUrl}
                       target="_blank"
                       rel="noopener noreferrer"
@@ -508,18 +508,6 @@ export default function ReturnPage() {
                         {order.email}.
                       </span>
                     </div>
-
-                    {label.trackingCode && (
-                      <div
-                        style={{
-                          fontSize: "0.75rem",
-                          color: "var(--text-secondary)",
-                          marginTop: "0.75rem",
-                        }}
-                      >
-                        Tracking: {label.trackingCode}
-                      </div>
-                    )}
                   </>
                 ) : (
                   <>
@@ -547,16 +535,18 @@ export default function ReturnPage() {
                     send off your parcel for you.
                   </li>
                   <li>
-                    Pack all returned items in your original shipping satchel or
-                    any suitable box. Make sure items are clean and in original
-                    condition.
+                    Pack all returned items in your original shipping packaging
+                    or any suitable box. Make sure items are unworn, unwashed,
+                    and in original condition with all tags attached.
                   </li>
                   <li>
-                    Attach the label to the outside of the package.
+                    Attach the return label to the outside of the package,
+                    covering any previous shipping labels.
                   </li>
                   <li>
                     Drop it off at any{" "}
-                    {label?.carrier || "USPS"} location.
+                    {label?.carrier || "USPS"} location. You will receive an
+                    email once your return has been received and processed.
                   </li>
                 </ol>
               </div>
