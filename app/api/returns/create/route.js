@@ -117,7 +117,6 @@ async function createShopifyReturn(orderId, items, reasons, fulfillmentMap) {
       fulfillmentLineItemId: mapped.fulfillmentLineItemId,
       quantity: item.quantity,
       returnReason: REASON_MAP[reasons[item.id]] || "OTHER",
-      customerNote: reasons[item.id] || "",
     });
   }
 
