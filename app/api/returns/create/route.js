@@ -354,17 +354,7 @@ export async function POST(request) {
     console.log("Fetching fulfillment line items for order:", orderId);
     const fulfillmentMap = await getFulfillmentLineItems(orderId);
 
-    // 2. Create the return in Shopify
-    console.log("Creating return in Shopify...");
-    const shopifyReturn = await createShopifyReturn(
-      orderId,
-      items,
-      reasons,
-      fulfillmentMap
-    );
-    console.log("Return created:", shopifyReturn.id);
-
-    // 3. Generate prepaid return label (if EasyPost is configured)
+    // 2. Generate prepaid return label FIRST (before creating return)
     let label = null;
     if (shippingAddress) {
       console.log("Generating return label...");
@@ -375,6 +365,16 @@ export async function POST(request) {
         console.log("Label URL saved to order metafield");
       }
     }
+
+    // 3. Create the return in Shopify (triggers email AFTER metafield is saved)
+    console.log("Creating return in Shopify...");
+    const shopifyReturn = await createShopifyReturn(
+      orderId,
+      items,
+      reasons,
+      fulfillmentMap
+    );
+    console.log("Return created:", shopifyReturn.id);
 
     return NextResponse.json({
       success: true,
