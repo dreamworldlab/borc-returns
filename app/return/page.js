@@ -511,7 +511,8 @@ export default function ReturnPage() {
                       <span>✉</span>
                       <span>
                         A link to these instructions has been emailed to{" "}
-                        {order.email}.
+                        {order.email}. If you don&apos;t see it in your inbox,
+                        please check your Promotions, Updates, and Spam folders.
                       </span>
                     </div>
                   </>
