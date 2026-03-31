@@ -297,6 +297,39 @@ async function generateReturnLabel(customerAddress) {
   }
 }
 
+// ─── Save label URL to order metafield ────────────────────────
+async function saveLabelToOrder(orderId, labelUrl) {
+  const mutation = `
+    mutation metafieldsSet($metafields: [MetafieldsSetInput!]!) {
+      metafieldsSet(metafields: $metafields) {
+        metafields {
+          id
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  `;
+
+  const result = await shopifyGraphQL(mutation, {
+    metafields: [
+      {
+        ownerId: `gid://shopify/Order/${orderId}`,
+        namespace: "dbrman_returns",
+        key: "label_url",
+        type: "single_line_text_field",
+        value: labelUrl,
+      },
+    ],
+  });
+
+  if (result.errors) {
+    console.error("Metafield save error:", JSON.stringify(result.errors));
+  }
+}
+
 // ─── Main handler ─────────────────────────────────────────────
 export async function POST(request) {
   try {
@@ -336,8 +369,10 @@ export async function POST(request) {
     if (shippingAddress) {
       console.log("Generating return label...");
       label = await generateReturnLabel(shippingAddress);
-      if (label) {
+      if (label && label.labelUrl) {
         console.log("Label generated:", label.trackingCode);
+        await saveLabelToOrder(orderId, label.labelUrl);
+        console.log("Label URL saved to order metafield");
       }
     }
 
