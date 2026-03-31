@@ -28,6 +28,43 @@ const REASON_MAP = {
   Other: "OTHER",
 };
 
+// ─── Verify shipping address via EasyPost ─────────────────────
+async function verifyAddress(customerAddress) {
+  if (!EASYPOST_API_KEY) return;
+
+  const res = await fetch("https://api.easypost.com/v2/addresses", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${EASYPOST_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      address: {
+        name: customerAddress.name,
+        street1: customerAddress.address1,
+        street2: customerAddress.address2 || "",
+        city: customerAddress.city,
+        state: customerAddress.province_code || customerAddress.province,
+        zip: customerAddress.zip,
+        country: customerAddress.country_code || "US",
+      },
+      verify: ["delivery"],
+    }),
+  });
+
+  const data = await res.json();
+  const verifications = data?.verifications?.delivery;
+
+  if (!verifications?.success) {
+    const errors = (verifications?.errors || [])
+      .map((e) => e.message)
+      .join(", ");
+    throw new Error(
+      errors || "We couldn't verify your shipping address. Please contact support@birthofroyalchild.com for help with your return."
+    );
+  }
+}
+
 // ─── Shopify GraphQL helper ───────────────────────────────────
 async function shopifyGraphQL(query, variables = {}) {
   const res = await fetch(
@@ -271,6 +308,13 @@ export async function POST(request) {
         { error: "Missing required fields" },
         { status: 400 }
       );
+    }
+
+    // 0. Verify shipping address before creating anything
+    if (shippingAddress) {
+      console.log("Verifying shipping address...");
+      await verifyAddress(shippingAddress);
+      console.log("Address verified");
     }
 
     // 1. Get fulfillment line item mapping
