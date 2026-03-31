@@ -102,17 +102,27 @@ export async function POST(request) {
     }
 
     // Build initial line items
-    const items = order.line_items.map((item) => ({
-      id: item.id,
-      title: item.title,
-      variant_title: item.variant_title,
-      quantity: item.quantity,
-      price: item.price,
-      image: item.image?.src || null,
-      product_id: item.product_id,
-      sku: item.sku,
-      fulfillment_status: item.fulfillment_status,
-    }));
+    const items = order.line_items.map((item) => {
+      const totalDiscounts = (item.discount_allocations || []).reduce(
+        (sum, alloc) => sum + parseFloat(alloc.amount || 0),
+        0
+      );
+      const paidTotal =
+        parseFloat(item.price) * item.quantity - totalDiscounts;
+      const paidPerUnit = paidTotal / item.quantity;
+
+      return {
+        id: item.id,
+        title: item.title,
+        variant_title: item.variant_title,
+        quantity: item.quantity,
+        price: paidPerUnit.toFixed(2),
+        image: item.image?.src || null,
+        product_id: item.product_id,
+        sku: item.sku,
+        fulfillment_status: item.fulfillment_status,
+      };
+    });
 
     // Fetch product images for items missing images
     const missingImageProductIds = items

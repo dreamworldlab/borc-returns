@@ -56,7 +56,8 @@ export default function ReturnPage() {
   );
   const storeCreditBonus = (itemsTotal * STORE_CREDIT_BONUS_PERCENT) / 100;
   const storeCreditTotal = itemsTotal + storeCreditBonus;
-  const refundTotal = Math.max(0, itemsTotal - REFUND_FEE);
+  const refundFeeApplied = itemsTotal > REFUND_FEE ? REFUND_FEE : 0;
+  const refundTotal = itemsTotal - refundFeeApplied;
 
   function toggleItem(itemId, quantity) {
     setSelectedItems((prev) => {
@@ -369,7 +370,9 @@ export default function ReturnPage() {
                   <div className="credit-option-icon">💳</div>
                   <div className="credit-option-details">
                     <h3>Refund to original payment method</h3>
-                    <span className="fee">-${REFUND_FEE.toFixed(2)} Fee</span>
+                    {refundFeeApplied > 0 && (
+                      <span className="fee">-${refundFeeApplied.toFixed(2)} Fee</span>
+                    )}
                     <p>
                       Receive a refund (minus applicable fees) to your original
                       payment method once your return is approved.
