@@ -4,6 +4,7 @@ const SHOPIFY_STORE = process.env.SHOPIFY_STORE_URL;
 const ACCESS_TOKEN = process.env.SHOPIFY_ACCESS_TOKEN;
 const API_VERSION = "2026-01";
 const EASYPOST_API_KEY = process.env.EASYPOST_API_KEY;
+const KLAVIYO_API_KEY = process.env.KLAVIYO_API_KEY;
 
 // BORC's return warehouse address
 const RETURN_ADDRESS = {
@@ -330,11 +331,70 @@ async function saveLabelToOrder(orderId, labelUrl) {
   }
 }
 
+// ─── Send return notification via Klaviyo ─────────────────────
+async function sendKlaviyoEvent(order, selectedItems, creditOption, label) {
+  if (!KLAVIYO_API_KEY) {
+    console.warn("KLAVIYO_API_KEY not set — skipping email event");
+    return;
+  }
+
+  try {
+    const res = await fetch("https://a.klaviyo.com/api/events", {
+      method: "POST",
+      headers: {
+        Authorization: `Klaviyo-API-Key ${KLAVIYO_API_KEY}`,
+        "Content-Type": "application/json",
+        revision: "2024-10-15",
+      },
+      body: JSON.stringify({
+        data: {
+          type: "event",
+          attributes: {
+            metric: {
+              data: {
+                type: "metric",
+                attributes: {
+                  name: "Return Submitted",
+                },
+              },
+            },
+            profile: {
+              data: {
+                type: "profile",
+                attributes: {
+                  email: order.email,
+                },
+              },
+            },
+            properties: {
+              order_number: order.name,
+              items: selectedItems,
+              credit_option: creditOption,
+              label_url: label?.labelUrl || null,
+              tracking_code: label?.trackingCode || null,
+              carrier: label?.carrier || "USPS",
+            },
+          },
+        },
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      console.error("Klaviyo event error:", err);
+    } else {
+      console.log("Klaviyo event sent for", order.email);
+    }
+  } catch (err) {
+    console.error("Klaviyo event failed:", err.message);
+  }
+}
+
 // ─── Main handler ─────────────────────────────────────────────
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { orderId, items, reasons, creditOption, shippingAddress } = body;
+    const { orderId, orderName, email, items, reasons, creditOption, shippingAddress } = body;
 
     if (!orderId || !items || items.length === 0) {
       return NextResponse.json(
@@ -375,6 +435,14 @@ export async function POST(request) {
       fulfillmentMap
     );
     console.log("Return created:", shopifyReturn.id);
+
+    // 4. Send Klaviyo notification event
+    await sendKlaviyoEvent(
+      { email, name: orderName },
+      items,
+      creditOption,
+      label
+    );
 
     return NextResponse.json({
       success: true,

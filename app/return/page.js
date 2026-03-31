@@ -91,9 +91,15 @@ export default function ReturnPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           orderId: order.id,
+          orderName: order.name,
+          email: order.email,
           items: selectedItemsList.map((item) => ({
             id: item.id,
             quantity: selectedItems[item.id],
+            title: item.title,
+            variant_title: item.variant_title,
+            price: item.price,
+            image: item.image,
           })),
           reasons,
           creditOption,
@@ -471,7 +477,7 @@ export default function ReturnPage() {
                     </div>
 
                     
-                      href={label.labelUrl}
+                      <a href={label.labelUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="btn-primary"
