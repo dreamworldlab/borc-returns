@@ -216,7 +216,8 @@ async function generateReturnLabel(customerAddress) {
       },
       body: JSON.stringify({
         shipment: {
-          from_address: {
+          from_address: RETURN_ADDRESS,
+          to_address: {
             name: customerAddress.name,
             street1: customerAddress.address1,
             street2: customerAddress.address2 || "",
@@ -226,7 +227,6 @@ async function generateReturnLabel(customerAddress) {
             country: customerAddress.country_code || "US",
             phone: customerAddress.phone || "",
           },
-          to_address: RETURN_ADDRESS,
           parcel: {
             // Default parcel size for apparel returns
             length: 14,
