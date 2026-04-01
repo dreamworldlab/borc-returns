@@ -61,7 +61,7 @@ async function verifyAddress(customerAddress) {
       .map((e) => e.message)
       .join(", ");
     throw new Error(
-      errors || "We couldn't verify your shipping address. Please contact support@birthofroyalchild.com for help with your return."
+      errors || "We couldn't verify your shipping address. Please contact customerservice@birthofroyalchild.com for help with your return."
     );
   }
 }

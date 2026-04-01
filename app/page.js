@@ -101,8 +101,8 @@ export default function Home() {
       <div className="contact-footer">
         <strong>Questions?</strong>
         Contact{" "}
-        <a href="mailto:support@birthofroyalchild.com">
-          support@birthofroyalchild.com
+        <a href="mailto:customerservice@birthofroyalchild.com">
+          customerservice@birthofroyalchild.com
         </a>
       </div>
     </div>
