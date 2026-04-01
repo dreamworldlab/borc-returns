@@ -101,6 +101,21 @@ export async function POST(request) {
       );
     }
 
+    // Check if order is international
+    if (
+      order.shipping_address &&
+      order.shipping_address.country_code &&
+      order.shipping_address.country_code !== "US"
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "For international order returns, please contact customerservice@birthofroyalchild.com for assistance.",
+        },
+        { status: 400 }
+      );
+    }
+
     // Build initial line items
     const items = order.line_items.map((item) => {
       const totalDiscounts = (item.discount_allocations || []).reduce(
